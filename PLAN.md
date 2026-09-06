@@ -66,7 +66,7 @@ Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one i
 **Phase 0 — Environment** ✅ done
 1. Scaffolded via `android create empty-activity` (Compose template), package `com.virtualsoundnw.chords`, minSdk 26.
 2. Verified `assembleDebug` builds clean.
-3. `.github/workflows/android-ci.yml` for build+unit tests on push is still TODO.
+3. ✅ `.github/workflows/android-ci.yml` runs unit tests + `assembleDebug` on push to `main` and on pull requests.
 
 **Phase 1 — Music theory core (no UI yet)** ✅ done
 4. Implemented `Note`, `ChordQuality`, and `ChordSymbol` (canonical-name + pitch-class derivation) in `com.virtualsoundnw.chords.theory`.
