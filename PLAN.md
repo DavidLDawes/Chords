@@ -138,9 +138,14 @@ Ukulele reuses the music-theory layer completely unchanged (`Note`/`ChordQuality
 27. Tests: ukulele voicing-data self-verification (same rigor as `GuitarVoicingDataTest`), `FretboardLayout`/`FretboardDiagramView` with a 4-string voicing, and instrument-picker ViewModel coverage.
    - Shipped: `UkuleleVoicingDataTest`, `StandardUkuleleTuningTest`, a 4-string case in `FretboardLayoutTest`, and `ChordSelectionViewModelTest` coverage for instrument switching/persistence. 76 unit tests total across the project (up from 61).
 
-**Phase 7 — Testing & hardening**
+**Phase 7 — Testing & hardening** ✅ done
 28. Full unit test pass on theory + voicing modules; Compose UI tests for selector→render flow; manual pass on a real device via `android-cli`-driven install/run.
+   - Unit tests: 76 tests already in place from earlier phases (theory, voicing data self-verification for both instruments, ViewModel, MIDI byte format), all still green.
+   - Shipped: `ChordSelectorScreenTest`, 8 instrumented Compose UI tests driving the stateless `ChordSelectorScreen(state, ...)` overload directly (controlled state in, recorded callbacks out) — root selection, quality toggling (including a disabled checkbox correctly *not* firing), instrument switching, tapping the fretboard, the Play button, and the "no voicing curated" fallback message. All 8 pass on-device via `./gradlew connectedDebugAndroidTest`.
+   - Deliberately **not** added to CI: emulator-based instrumented testing in GitHub Actions needs real machine emulation (KVM) and is a meaningfully heavier, flakier CI setup than the current unit-test-only workflow. Documented here as a conscious scope decision, not an oversight — revisit if regressions in this area start slipping through.
+   - Manual device pass: re-confirmed the "no voicing curated" fallback switches correctly per-instrument (e.g. `C9` shows "No guitar shape curated yet" on Guitar and "No ukulele shape curated yet" on Ukulele) with no crash. Also noted for the record: running `connectedDebugAndroidTest` clears the app's DataStore as part of Android's normal test-isolation behavior — expected, not a persistence bug.
 29. Basic crash reporting (Play Console's built-in Android Vitals is enough for v1 — skip a third-party SDK to avoid the privacy-policy overhead it adds).
+   - Confirmed: `AndroidManifest.xml` has nothing that would interfere with Vitals' automatic OS-level crash/ANR collection. No code changes needed — this activates automatically once the app is distributed through Play Console.
 
 **Phase 8 — Store readiness**
 30. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page (needed even for a no-account app if you request any permissions — MIDI/MediaPlayer audio playback needs no special permissions, but a policy is still required for Play listing).
