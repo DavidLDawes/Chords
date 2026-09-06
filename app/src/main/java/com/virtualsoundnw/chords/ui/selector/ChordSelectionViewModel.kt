@@ -3,6 +3,8 @@ package com.virtualsoundnw.chords.ui.selector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.virtualsoundnw.chords.audio.ChordAudioSource
+import com.virtualsoundnw.chords.data.ChordSelectionStore
+import com.virtualsoundnw.chords.data.SavedSelection
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.ChordSymbol
 import com.virtualsoundnw.chords.theory.Note
@@ -13,10 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class ChordSelectionViewModel(
     private val voicingLookup: GuitarVoicingLookup,
     private val audioSource: ChordAudioSource,
+    private val selectionStore: ChordSelectionStore,
 ) : ViewModel() {
     private val root = MutableStateFlow(Note.C)
     private val qualities = MutableStateFlow<Set<ChordQuality>>(emptySet())
@@ -28,8 +32,18 @@ class ChordSelectionViewModel(
             resolve(Note.C, emptySet()),
         )
 
+    init {
+        viewModelScope.launch {
+            selectionStore.load()?.let { saved ->
+                root.value = saved.root
+                qualities.value = saved.qualities
+            }
+        }
+    }
+
     fun selectRoot(note: Note) {
         root.value = note
+        persistSelection()
     }
 
     fun toggleQuality(quality: ChordQuality) {
@@ -40,6 +54,7 @@ class ChordSelectionViewModel(
                 else -> current
             }
         }
+        persistSelection()
     }
 
     fun playCurrentChord() {
@@ -51,6 +66,12 @@ class ChordSelectionViewModel(
 
     override fun onCleared() {
         audioSource.release()
+    }
+
+    private fun persistSelection() {
+        viewModelScope.launch {
+            selectionStore.save(SavedSelection(root.value, qualities.value))
+        }
     }
 
     private fun resolve(root: Note, qualities: Set<ChordQuality>): ChordSelectionUiState {

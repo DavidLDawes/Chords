@@ -24,6 +24,7 @@ class MidiChordPlayer : ChordAudioSource {
             setDataSource(InMemoryMidiDataSource(bytes))
             setOnPreparedListener { it.start() }
             setOnCompletionListener { release() }
+            setOnErrorListener { _, _, _ -> release(); true } // swallow: nothing to retry, just avoid leaking/crashing
             prepareAsync()
         }
     }

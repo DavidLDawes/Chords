@@ -38,4 +38,16 @@ object FretboardLayout {
         fret == 0 -> StringMarker.Open
         else -> StringMarker.Fretted(fret - baseFret)
     }
+
+    /** A screen-reader-friendly description of [voicing], low string to high string. */
+    fun describeVoicing(voicing: GuitarVoicing): String {
+        val strings = voicing.frets.joinToString(", ") { fret ->
+            when (fret) {
+                null -> "muted"
+                0 -> "open"
+                else -> "fret $fret"
+            }
+        }
+        return "Fretboard diagram, strings low to high: $strings. Tap to play."
+    }
 }
