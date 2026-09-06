@@ -19,14 +19,14 @@ additive work, not rework.
 - **Persistence**: Jetpack DataStore (Preferences) for last-used selection/instrument and favorites. No Room unless voicing data outgrows bundled JSON (unlikely).
 - **Music theory**: hand-written Kotlin (`Note`, `ChordQuality`, `ChordSymbol`). Do not pull in an external music-theory library for 12-TET interval math — it's ~200 lines and we want full control over the checkbox-combination validity rules.
 - **Chord voicing data**: bundled JSON under `app/src/main/assets/chords/`, keyed by canonical chord symbol (e.g. `"Am7"`). Treat this as curated data, not generated at runtime — voicing quality (real, low-fret, hand-playable shapes) is the main product-quality risk in this app, so prefer hand-verifying entries over generating them algorithmically.
-- **Audio**: `SoundPool` playing one short sample per semitone per instrument, layered to produce a chord (not one recording per chord — that doesn't scale across root × quality × instrument). Pitch-shift via `setRate` to fill gaps between recorded notes if the sample set is sparse.
+- **Audio**: MIDI, not recorded samples. Build a short in-memory MIDI sequence per chord (Program Change to the target General MIDI instrument, e.g. 24 = nylon guitar, then simultaneous Note-On for every pitch in the voicing, then Note-Off) and play it via `MediaPlayer` + a `MediaDataSource`, using Android's built-in Sonivox synth. Zero audio assets to source/license, and adding an instrument is a program-number change, not a new sample set. Tradeoff: the built-in synth is a modest-quality wavetable synth, not a realistic recorded instrument — acceptable for v1; a future `SoundFontChordPlayer` can replace it behind the same interface if quality needs to improve.
 - **Testing**: JUnit for the theory/voicing-loader modules (highest-value tests in this codebase), Compose UI tests for selector → render flow.
 - **CI**: GitHub Actions running unit tests + `assembleDebug` on push.
 
 ## Architectural seams to preserve
 
 - `ChordVisualization` interface — `FretboardDiagramView` is the only v1 implementation. Future: `HandPhotoView`, `KeyboardDiagramView`, `HandOnKeyboardPhotoView`.
-- `ChordAudioSource` interface — `SampledNoteChordPlayer` is the only v1 implementation. A future `SoundFontChordPlayer` may replace/supplement it if instrument coverage grows.
+- `ChordAudioSource` interface — `MidiChordPlayer` is the only v1 implementation. A future `SoundFontChordPlayer` may replace/supplement it if audio quality needs to improve.
 - `Instrument` enum drives both which visualization and which audio source get used — keep selection logic instrument-agnostic; don't hardcode "guitar" assumptions (6 strings, fret model) outside the guitar-specific voicing/rendering code.
 
 ## Chord-quality checkbox rules

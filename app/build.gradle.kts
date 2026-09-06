@@ -37,6 +37,14 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    sourceSets {
+        // Lets JVM unit tests load the real bundled chord-voicing JSON via the
+        // classloader instead of duplicating it under src/test/resources.
+        getByName("test") {
+            resources.directories.add("src/main/assets")
+        }
+    }
 }
 
 kotlin {
@@ -47,6 +55,9 @@ dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)
+
+  // Serialization (chord voicing JSON assets)
+  implementation(libs.kotlinx.serialization.json)
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)

@@ -21,7 +21,7 @@
 | Architecture | MVVM: `ViewModel` + `StateFlow`, single `ChordSelection` UI state | keeps selector state, fretboard render, and audio trigger all reacting to one source of truth |
 | Chord/music theory | Hand-written Kotlin module (no external lib) | interval math for 12-TET is ~200 lines; avoids pulling in a heavyweight music-theory dependency for something this small |
 | Chord voicing data | Bundled JSON in `assets/chords/*.json`, one entry per (root, quality) → list of playable fret positions | Curating real, hand-playable shapes (open + barre) is the hard part — treat it as **data**, not code, so it can be corrected/extended without a rebuild of logic. Seed it from a permissively-licensed chord-chart dataset (e.g. the public `chords-db`/`guitar-chords-db` JSON corpora) and hand-verify/trim to hand-playable low-fret shapes. |
-| Audio engine | `SoundPool` + per-note one-shot samples (not per-chord samples) | Recording/sourcing a sample for every chord×instrument combo doesn't scale. Instead: one short note sample per semitone per instrument (≈37 samples spanning guitar's practical range), play all notes in a voicing simultaneously via `SoundPool.play()` calls fired together. Ogg Vorbis, ~0.5–1s each. |
+| Audio engine | MIDI via `MediaPlayer` + Android's built-in Sonivox synth (General MIDI instruments) | No samples to source, record, or license at all. Build a short in-memory MIDI sequence (Program Change to the target GM instrument, e.g. 24 = nylon guitar, then simultaneous Note-On for every pitch in the voicing), hand it to `MediaPlayer` via a `MediaDataSource`, play. Adding an instrument is a program-number change. Tradeoff: built-in synth is modest-quality wavetable, not a recorded instrument — a future `SoundFontChordPlayer` can upgrade this later behind the same `ChordAudioSource` interface. |
 | Local persistence | DataStore (Preferences) | remember last-used instrument/selection, favorites (v1.1) |
 | DI | Manual/Koin (skip Hilt for a project this size unless it grows) | keep build simple |
 | Testing | JUnit5/JUnit4 for the theory module, Compose UI test + Espresso for screens | chord-symbol logic is the part most worth unit testing |
@@ -55,28 +55,31 @@ ChordVisualization = interface { fun render(voicing, modifier) }
   -> HandOnKeyboardPhotoView(future)
 
 ChordAudioSource = interface { fun play(symbol: ChordSymbol, instrument: Instrument) }
-  -> SampledNoteChordPlayer (v1: layer per-note SoundPool samples)
-  -> SoundFontChordPlayer   (future stretch: MIDI + soundfont synth for wider instrument coverage)
+  -> MidiChordPlayer       (v1: build an in-memory MIDI sequence, play via MediaPlayer + the built-in Sonivox GM synth)
+  -> SoundFontChordPlayer  (future stretch: bundle a soundfont + a real synth for better tone if the built-in synth's quality isn't enough)
 ```
 
 Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one is what makes "add hand photos later" and "add piano later" additive instead of a rewrite.
 
 ## 4. Build sequence
 
-**Phase 0 — Environment**
-1. Install/confirm Android Studio + SDK (use `android-cls` skill's setup instructions), create emulator (Pixel-class, API 34+).
-2. `File > New Project > Empty Activity (Compose)`, package `com.<you>.chords`, min SDK 26.
-3. Commit initial scaffold; set up `.github/workflows/android-ci.yml` for build+unit tests on push.
+**Phase 0 — Environment** ✅ done
+1. Scaffolded via `android create empty-activity` (Compose template), package `com.virtualsoundnw.chords`, minSdk 26.
+2. Verified `assembleDebug` builds clean.
+3. `.github/workflows/android-ci.yml` for build+unit tests on push is still TODO.
 
-**Phase 1 — Music theory core (no UI yet)**
-4. Implement `Note`, `ChordQuality`, interval tables, and `ChordSymbol` canonical-name + interval derivation.
-5. Encode checkbox-combination validity rules (e.g. Aug excludes Dim/min; sus2/sus4 exclude 3rd-based qualities; 9 implies 7) as a small compatibility matrix.
-6. Unit test: every valid combination produces correct semitone set and display name.
+**Phase 1 — Music theory core (no UI yet)** ✅ done
+4. Implemented `Note`, `ChordQuality`, and `ChordSymbol` (canonical-name + pitch-class derivation) in `com.virtualsoundnw.chords.theory`.
+5. Compatibility matrix implemented as a mutually-exclusive triad-quality group (Minor/Sus2/Sus4/Aug/Dim) plus a 6th-vs-7th conflict — see `ChordSymbol.findConflict`.
+6. 27 unit tests across `NoteTest`/`ChordSymbolTest` cover valid combinations (pitch classes + names) and rejected ones.
 
-**Phase 2 — Chord voicing data**
+**Phase 2 — Chord voicing data** ✅ done
 7. Source/curate an initial JSON dataset of guitar voicings for all 12 roots × the v1 quality set, favoring open/low-fret hand-playable shapes over barre chords where possible.
+   - Shipped: all 12 major and minor triads, all 12 dominant 7ths, and the common open-position sus2/sus4 chords (43 entries total) in `app/src/main/assets/chords/guitar_voicings.json`. 6th/9th/Aug/Dim voicings deliberately deferred rather than shipping guessed shapes — real risk here is wrong data, not missing data.
 8. Write a loader that indexes voicings by `ChordSymbol.canonicalName`; handle "no known low-fret voicing" gracefully (fall back to a generated barre shape or show "voicing not yet available").
+   - Shipped: `GuitarVoicingParser` (pure JSON→data parsing) + `GuitarVoicingRepository` (Android asset-backed lookup). The "no voicing yet" fallback UI is still TODO in Phase 6.
 9. Unit test the loader against a handful of known chords (E, Am, G7, Cmaj7).
+   - Shipped, and taken further: `GuitarVoicingDataTest` validates every fretted note in the *actual bundled file* is a real chord tone (transposed through standard tuning) and that every voicing sounds its root — not just a synthetic sample.
 
 **Phase 3 — Selector UI**
 10. Build the root-note dropdown (`ExposedDropdownMenuBox`) with sharps/flats shown together (e.g. "A# / Bb").
@@ -89,8 +92,8 @@ Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one i
 15. Compose preview + Compose UI tests for a few known voicings.
 
 **Phase 5 — Audio**
-16. Source or record one short note sample per semitone across the guitar's usable range (~E2–E5), Ogg format, normalized volume.
-17. Implement `SampledNoteChordPlayer` using `SoundPool`: given a voicing's fretted notes, resolve each to a pitch, map to nearest available sample (pitch-shift via `setRate` if needed for in-between notes), fire all `play()` calls together.
+16. Write a small in-memory Standard MIDI File (SMF) builder: Program Change to a General MIDI instrument number, simultaneous Note-On for every pitch in the voicing (resolved from fret + open-string tuning), Note-Off ~1.5s later, End of Track.
+17. Implement `MidiChordPlayer`: hand the generated bytes to `MediaPlayer` via a `MediaDataSource` (no temp file), `prepare()`/`start()` on tap. Map `Instrument` to a GM program number (e.g. nylon guitar = 24, steel guitar = 25, piano = 0).
 18. Wire a tap gesture on the fretboard canvas + an explicit "play" button to `ChordAudioSource.play(...)`.
 
 **Phase 6 — Integration & polish**
@@ -104,7 +107,7 @@ Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one i
 24. Basic crash reporting (Play Console's built-in Android Vitals is enough for v1 — skip a third-party SDK to avoid the privacy-policy overhead it adds).
 
 **Phase 8 — Store readiness**
-25. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page (needed even for a no-account app if you request any permissions — audio playback via SoundPool needs none beyond normal, but a policy is still required for Play listing).
+25. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page (needed even for a no-account app if you request any permissions — MIDI/MediaPlayer audio playback needs no special permissions, but a policy is still required for Play listing).
 26. Set `versionCode`/`versionName`, enable Play App Signing, generate/upload signed `.aab` via Android Studio's "Generate Signed Bundle" or `./gradlew bundleRelease`.
 27. Fill out Play Console's Data Safety form (likely "no data collected" for v1), content rating questionnaire, target audience.
 
