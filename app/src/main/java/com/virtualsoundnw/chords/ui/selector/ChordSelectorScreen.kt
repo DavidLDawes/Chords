@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.virtualsoundnw.chords.audio.MidiChordPlayer
 import com.virtualsoundnw.chords.theme.ChordsTheme
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.ChordSymbol
@@ -39,12 +41,14 @@ import com.virtualsoundnw.chords.voicing.GuitarVoicingRepository
 @Composable
 fun ChordSelectorScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val viewModel: ChordSelectionViewModel = viewModel { ChordSelectionViewModel(GuitarVoicingRepository(context)) }
+    val viewModel: ChordSelectionViewModel =
+        viewModel { ChordSelectionViewModel(GuitarVoicingRepository(context), MidiChordPlayer()) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ChordSelectorScreen(
         state = state,
         onRootSelected = viewModel::selectRoot,
         onQualityToggled = viewModel::toggleQuality,
+        onPlay = viewModel::playCurrentChord,
         modifier = modifier,
     )
 }
@@ -54,6 +58,7 @@ internal fun ChordSelectorScreen(
     state: ChordSelectionUiState,
     onRootSelected: (Note) -> Unit,
     onQualityToggled: (ChordQuality) -> Unit,
+    onPlay: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -70,7 +75,10 @@ internal fun ChordSelectorScreen(
         )
         val voicing = state.voicing
         if (voicing != null) {
-            FretboardDiagramView(voicing = voicing, modifier = Modifier.fillMaxWidth())
+            FretboardDiagramView(voicing = voicing, modifier = Modifier.fillMaxWidth(), onTap = onPlay)
+            Button(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
+                Text("Play ${state.chordSymbol.canonicalName}")
+            }
         } else {
             Text(
                 text = "No guitar shape curated yet for ${state.chordSymbol.canonicalName}",
@@ -135,6 +143,7 @@ private fun ChordSelectorScreenPreview() {
             state = ChordSelectionUiState(root, qualities, ChordSymbol.of(root, qualities).getOrThrow(), voicing),
             onRootSelected = {},
             onQualityToggled = {},
+            onPlay = {},
         )
     }
 }

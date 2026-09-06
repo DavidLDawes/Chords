@@ -2,6 +2,7 @@ package com.virtualsoundnw.chords.ui.selector
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.virtualsoundnw.chords.audio.ChordAudioSource
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.ChordSymbol
 import com.virtualsoundnw.chords.theory.Note
@@ -13,7 +14,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
-class ChordSelectionViewModel(private val voicingLookup: GuitarVoicingLookup) : ViewModel() {
+class ChordSelectionViewModel(
+    private val voicingLookup: GuitarVoicingLookup,
+    private val audioSource: ChordAudioSource,
+) : ViewModel() {
     private val root = MutableStateFlow(Note.C)
     private val qualities = MutableStateFlow<Set<ChordQuality>>(emptySet())
 
@@ -36,6 +40,17 @@ class ChordSelectionViewModel(private val voicingLookup: GuitarVoicingLookup) : 
                 else -> current
             }
         }
+    }
+
+    fun playCurrentChord() {
+        // Resolved directly from root/qualities rather than uiState.value:
+        // uiState is a WhileSubscribed StateFlow, so its cached value only
+        // tracks root/qualities while something is actively collecting it.
+        resolve(root.value, qualities.value).voicing?.let { audioSource.play(it) }
+    }
+
+    override fun onCleared() {
+        audioSource.release()
     }
 
     private fun resolve(root: Note, qualities: Set<ChordQuality>): ChordSelectionUiState {

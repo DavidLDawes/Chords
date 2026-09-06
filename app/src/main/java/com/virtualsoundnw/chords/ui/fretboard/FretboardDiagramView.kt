@@ -1,6 +1,7 @@
 package com.virtualsoundnw.chords.ui.fretboard
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -23,9 +24,12 @@ private const val STRING_COUNT = GuitarVoicing.STRING_COUNT
 private val TOP_MARGIN = 28.dp // room for the X/O markers above the nut
 private val SIDE_MARGIN = 24.dp // room for the fret-number label when the nut isn't shown
 
-/** Draws [voicing] as a standard chord-chart diagram: strings, frets, and fingering dots. */
+/**
+ * Draws [voicing] as a standard chord-chart diagram: strings, frets, and
+ * fingering dots. Tapping it invokes [onTap] — wire this to play the chord.
+ */
 @Composable
-fun FretboardDiagramView(voicing: GuitarVoicing, modifier: Modifier = Modifier) {
+fun FretboardDiagramView(voicing: GuitarVoicing, modifier: Modifier = Modifier, onTap: () -> Unit = {}) {
     val textMeasurer = rememberTextMeasurer()
     val lineColor = MaterialTheme.colorScheme.onSurface
     val dotColor = MaterialTheme.colorScheme.primary
@@ -33,7 +37,11 @@ fun FretboardDiagramView(voicing: GuitarVoicing, modifier: Modifier = Modifier) 
 
     val baseFret = FretboardLayout.baseFret(voicing.frets)
 
-    Canvas(modifier = modifier.aspectRatio(STRING_COUNT.toFloat() / (FretboardLayout.FRET_WINDOW_SIZE + 1))) {
+    Canvas(
+        modifier = modifier
+            .aspectRatio(STRING_COUNT.toFloat() / (FretboardLayout.FRET_WINDOW_SIZE + 1))
+            .clickable(onClick = onTap),
+    ) {
         val gridLeft = SIDE_MARGIN.toPx()
         val gridTop = TOP_MARGIN.toPx()
         val gridWidth = size.width - gridLeft
