@@ -3,12 +3,12 @@ package com.virtualsoundnw.chords.voicing
 import android.content.Context
 
 /**
- * Looks up curated guitar voicings by chord name (e.g. "Am7", from
+ * Looks up curated ukulele voicings by chord name (e.g. "Am7", from
  * [com.virtualsoundnw.chords.theory.ChordSymbol.canonicalName]). Backed by a
  * bundled JSON asset so voicing data can be corrected or extended without
  * touching lookup logic — see [ChordVoicingParser] for the actual parsing.
  */
-class GuitarVoicingRepository(context: Context) : VoicingLookup {
+class UkuleleVoicingRepository(context: Context) : VoicingLookup {
     private val appContext = context.applicationContext
 
     private val voicingsByChordName: Map<String, List<ChordVoicing>> by lazy {
@@ -20,6 +20,6 @@ class GuitarVoicingRepository(context: Context) : VoicingLookup {
         voicingsByChordName[canonicalName].orEmpty()
 
     private companion object {
-        const val ASSET_PATH = "chords/guitar_voicings.json"
+        const val ASSET_PATH = "chords/ukulele_voicings.json"
     }
 }

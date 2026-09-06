@@ -8,9 +8,9 @@ import kotlinx.serialization.json.Json
  * Kept free of Android APIs so the real bundled data can be parsed and
  * validated directly from a JVM unit test.
  */
-object GuitarVoicingParser {
+object ChordVoicingParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(source: String): Map<String, List<GuitarVoicing>> =
+    fun parse(source: String): Map<String, List<ChordVoicing>> =
         json.decodeFromString(source)
 }

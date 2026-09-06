@@ -1,9 +1,9 @@
 package com.virtualsoundnw.chords.ui.fretboard
 
-import com.virtualsoundnw.chords.voicing.GuitarVoicing
+import com.virtualsoundnw.chords.voicing.ChordVoicing
 
 /**
- * Pure geometry for drawing a [GuitarVoicing] as a fixed-size fret window —
+ * Pure geometry for drawing a [ChordVoicing] as a fixed-size fret window —
  * kept free of Compose/Android APIs so it's testable as a plain JVM unit.
  * [FretboardDiagramView] does the actual Canvas drawing from this.
  */
@@ -40,7 +40,7 @@ object FretboardLayout {
     }
 
     /** A screen-reader-friendly description of [voicing], low string to high string. */
-    fun describeVoicing(voicing: GuitarVoicing): String {
+    fun describeVoicing(voicing: ChordVoicing): String {
         val strings = voicing.frets.joinToString(", ") { fret ->
             when (fret) {
                 null -> "muted"

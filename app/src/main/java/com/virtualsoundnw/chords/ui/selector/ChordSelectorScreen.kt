@@ -15,6 +15,9 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -31,6 +34,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.virtualsoundnw.chords.audio.Instrument
 import com.virtualsoundnw.chords.audio.MidiChordPlayer
 import com.virtualsoundnw.chords.data.DataStoreChordSelectionStore
 import com.virtualsoundnw.chords.theme.ChordsTheme
@@ -38,8 +42,9 @@ import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.ChordSymbol
 import com.virtualsoundnw.chords.theory.Note
 import com.virtualsoundnw.chords.ui.fretboard.FretboardDiagramView
-import com.virtualsoundnw.chords.voicing.GuitarVoicing
+import com.virtualsoundnw.chords.voicing.ChordVoicing
 import com.virtualsoundnw.chords.voicing.GuitarVoicingRepository
+import com.virtualsoundnw.chords.voicing.UkuleleVoicingRepository
 
 @Composable
 fun ChordSelectorScreen(modifier: Modifier = Modifier) {
@@ -47,7 +52,10 @@ fun ChordSelectorScreen(modifier: Modifier = Modifier) {
     val viewModel: ChordSelectionViewModel =
         viewModel {
             ChordSelectionViewModel(
-                GuitarVoicingRepository(context),
+                mapOf(
+                    Instrument.GUITAR to GuitarVoicingRepository(context),
+                    Instrument.UKULELE to UkuleleVoicingRepository(context),
+                ),
                 MidiChordPlayer(),
                 DataStoreChordSelectionStore(context),
             )
@@ -57,6 +65,7 @@ fun ChordSelectorScreen(modifier: Modifier = Modifier) {
         state = state,
         onRootSelected = viewModel::selectRoot,
         onQualityToggled = viewModel::toggleQuality,
+        onInstrumentSelected = viewModel::selectInstrument,
         onPlay = viewModel::playCurrentChord,
         modifier = modifier,
     )
@@ -67,6 +76,7 @@ internal fun ChordSelectorScreen(
     state: ChordSelectionUiState,
     onRootSelected: (Note) -> Unit,
     onQualityToggled: (ChordQuality) -> Unit,
+    onInstrumentSelected: (Instrument) -> Unit,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,6 +84,7 @@ internal fun ChordSelectorScreen(
         modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        InstrumentPicker(selected = state.instrument, onSelected = onInstrumentSelected)
         RootNoteDropdown(selected = state.root, onSelected = onRootSelected)
         QualityCheckboxGroup(state = state, onToggle = onQualityToggled)
         Text(
@@ -90,10 +101,26 @@ internal fun ChordSelectorScreen(
             }
         } else {
             Text(
-                text = "No guitar shape curated yet for ${state.chordSymbol.canonicalName}",
+                text = "No ${state.instrument.label.lowercase()} shape curated yet for ${state.chordSymbol.canonicalName}",
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InstrumentPicker(selected: Instrument, onSelected: (Instrument) -> Unit, modifier: Modifier = Modifier) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        Instrument.entries.forEachIndexed { index, instrument ->
+            SegmentedButton(
+                selected = instrument == selected,
+                onClick = { onSelected(instrument) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = Instrument.entries.size),
+            ) {
+                Text(instrument.label)
+            }
         }
     }
 }
@@ -157,12 +184,13 @@ private fun QualityCheckboxGroup(state: ChordSelectionUiState, onToggle: (ChordQ
 private fun ChordSelectorScreenPreview() {
     val root = Note.A
     val qualities = setOf(ChordQuality.MINOR, ChordQuality.SEVENTH)
-    val voicing = GuitarVoicing(listOf(null, 0, 2, 0, 1, 0))
+    val voicing = ChordVoicing(listOf(null, 0, 2, 0, 1, 0))
     ChordsTheme {
         ChordSelectorScreen(
-            state = ChordSelectionUiState(root, qualities, ChordSymbol.of(root, qualities).getOrThrow(), voicing),
+            state = ChordSelectionUiState(root, qualities, Instrument.GUITAR, ChordSymbol.of(root, qualities).getOrThrow(), voicing),
             onRootSelected = {},
             onQualityToggled = {},
+            onInstrumentSelected = {},
             onPlay = {},
         )
     }

@@ -8,37 +8,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates the real bundled `chords/guitar_voicings.json` — not a synthetic
- * sample — against the chord each entry claims to be. Every fretted note is
- * checked to actually be a pitch class of that chord in standard tuning
- * (E A D G B E), so a typo'd fret number (the main risk called out in
- * PLAN.md's voicing-data section) fails a test instead of shipping a wrong
- * diagram.
+ * Validates the real bundled `chords/ukulele_voicings.json` — not a
+ * synthetic sample — against the chord each entry claims to be. Every
+ * fretted note is checked to actually be a pitch class of that chord in
+ * standard reentrant tuning (G4 C4 E4 A4), the same self-verification
+ * approach [GuitarVoicingDataTest] uses.
  */
-class GuitarVoicingDataTest {
-    /** Open-string pitch classes, low E to high E (Note's ordinal doubles as its pitch class). */
-    private val openStringPitchClasses = listOf(Note.E, Note.A, Note.D, Note.G, Note.B, Note.E).map { it.ordinal }
+class UkuleleVoicingDataTest {
+    /** Open-string pitch classes, physical string order (G C E A — reentrant, not pitch-ascending). */
+    private val openStringPitchClasses = listOf(Note.G, Note.C, Note.E, Note.A).map { it.ordinal }
 
     /** What each bundled chord name is supposed to be: root + qualities. */
     private val expectedChords: Map<String, Pair<Note, Set<ChordQuality>>> = buildMap {
-        val roots = Note.entries
-        for (root in roots) {
+        for (root in Note.entries) {
             put(root.symbol, root to emptySet())
             put(root.symbol + "m", root to setOf(ChordQuality.MINOR))
             put(root.symbol + "7", root to setOf(ChordQuality.SEVENTH))
         }
-        put("Dsus2", Note.D to setOf(ChordQuality.SUS2))
-        put("Dsus4", Note.D to setOf(ChordQuality.SUS4))
-        put("Asus2", Note.A to setOf(ChordQuality.SUS2))
-        put("Asus4", Note.A to setOf(ChordQuality.SUS4))
-        put("Esus4", Note.E to setOf(ChordQuality.SUS4))
-        put("Csus4", Note.C to setOf(ChordQuality.SUS4))
-        put("Gsus4", Note.G to setOf(ChordQuality.SUS4))
     }
 
     private fun loadBundledVoicings(): Map<String, List<ChordVoicing>> {
-        val stream = javaClass.classLoader!!.getResourceAsStream("chords/guitar_voicings.json")
-            ?: error("chords/guitar_voicings.json not found on the test classpath")
+        val stream = javaClass.classLoader!!.getResourceAsStream("chords/ukulele_voicings.json")
+            ?: error("chords/ukulele_voicings.json not found on the test classpath")
         return ChordVoicingParser.parse(stream.bufferedReader().use { it.readText() })
     }
 
@@ -46,7 +37,7 @@ class GuitarVoicingDataTest {
     fun `every bundled chord name matches a known root and quality combination`() {
         val voicings = loadBundledVoicings()
         for (name in voicings.keys) {
-            assertTrue("Unrecognized chord name in guitar_voicings.json: $name", name in expectedChords)
+            assertTrue("Unrecognized chord name in ukulele_voicings.json: $name", name in expectedChords)
         }
     }
 
@@ -54,7 +45,17 @@ class GuitarVoicingDataTest {
     fun `every expected chord is actually present in the bundled file`() {
         val voicings = loadBundledVoicings()
         for (name in expectedChords.keys) {
-            assertTrue("Expected chord missing from guitar_voicings.json: $name", name in voicings)
+            assertTrue("Expected chord missing from ukulele_voicings.json: $name", name in voicings)
+        }
+    }
+
+    @Test
+    fun `every voicing has exactly 4 strings`() {
+        val voicings = loadBundledVoicings()
+        for ((name, chordVoicings) in voicings) {
+            for (voicing in chordVoicings) {
+                assertEquals("$name: expected 4 strings", 4, voicing.frets.size)
+            }
         }
     }
 
