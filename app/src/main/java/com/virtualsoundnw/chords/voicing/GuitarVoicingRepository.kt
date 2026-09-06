@@ -8,7 +8,7 @@ import android.content.Context
  * bundled JSON asset so voicing data can be corrected or extended without
  * touching lookup logic — see [GuitarVoicingParser] for the actual parsing.
  */
-class GuitarVoicingRepository(context: Context) {
+class GuitarVoicingRepository(context: Context) : GuitarVoicingLookup {
     private val appContext = context.applicationContext
 
     private val voicingsByChordName: Map<String, List<GuitarVoicing>> by lazy {
@@ -16,8 +16,7 @@ class GuitarVoicingRepository(context: Context) {
         GuitarVoicingParser.parse(json)
     }
 
-    /** Returns the known playable shapes for [canonicalName], or an empty list if none are curated yet. */
-    fun voicingsFor(canonicalName: String): List<GuitarVoicing> =
+    override fun voicingsFor(canonicalName: String): List<GuitarVoicing> =
         voicingsByChordName[canonicalName].orEmpty()
 
     private companion object {

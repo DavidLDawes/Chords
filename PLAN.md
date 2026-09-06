@@ -89,10 +89,14 @@ Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one i
    - Shipped as `StateFlow<ChordSelectionUiState>` (root + qualities + the always-valid resolved `ChordSymbol>`, since invalid combinations are prevented rather than represented). Replaces the template's placeholder `MainScreen`/`MainScreenViewModel`/`DataRepository`, which were deleted. 6 unit tests in `ChordSelectionViewModelTest`.
    - Still shows only the resolved chord name as text — the fretboard diagram (Phase 4) is next.
 
-**Phase 4 — Fretboard rendering**
+**Phase 4 — Fretboard rendering** ✅ done
 13. Build `FretboardDiagramView` as a Compose `Canvas`: draw nut, 5 fret lines, 6 string lines, fret markers, then overlay the current `ChordVoicing` (dots on fret/string intersections, "X"/"O" above nut for muted/open strings).
+   - Shipped. Windowing/marker logic lives in a pure `FretboardLayout` object (no Compose deps) so it's JVM-unit-testable; the Composable just draws from it.
 14. Auto-scroll/shift the shown fret window when a voicing sits above fret 5 (so barre chords higher up the neck still render legibly).
+   - Shipped as `FretboardLayout.baseFret`: shows the nut when everything fits in frets 1-5, otherwise shifts the window so the highest fret is the last row and draws a "Nfr" label instead of the nut. Verified live on-device for both an open shape (C) and a shifted one (D#m, "4fr").
 15. Compose preview + Compose UI tests for a few known voicings.
+   - Shipped Compose previews (open + barre shapes) and a `FretboardLayoutTest` unit-test suite (8 tests: windowing + marker logic). Skipped instrumented Compose UI tests for now in favor of the on-device manual verification already done — revisit if regressions show up.
+   - `ChordSelectionViewModel` now depends on a `GuitarVoicingLookup` interface (not the Android-asset-backed `GuitarVoicingRepository` directly) so it stays testable as a plain JVM unit; `ChordSelectorScreen` shows the fretboard when a voicing is curated, otherwise a "No guitar shape curated yet" message. Also fixed: the screen's Column needed `verticalScroll` — checkboxes + fretboard together don't fit on one screen and the content was being clipped uncroll-ably before this.
 
 **Phase 5 — Audio**
 16. Write a small in-memory Standard MIDI File (SMF) builder: Program Change to a General MIDI instrument number, simultaneous Note-On for every pitch in the voicing (resolved from fret + open-string tuning), Note-Off ~1.5s later, End of Track.

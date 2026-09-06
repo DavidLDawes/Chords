@@ -2,6 +2,8 @@ package com.virtualsoundnw.chords.ui.selector
 
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.Note
+import com.virtualsoundnw.chords.voicing.GuitarVoicing
+import com.virtualsoundnw.chords.voicing.GuitarVoicingLookup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -34,7 +36,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `initial state is a plain C major`() = runTest {
-        val viewModel = ChordSelectionViewModel()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
         val state = viewModel.uiState.first()
         assertEquals(Note.C, state.root)
         assertEquals(emptySet<ChordQuality>(), state.qualities)
@@ -43,14 +45,14 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `selecting a root updates the resolved chord`() = runTest {
-        val viewModel = ChordSelectionViewModel()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
         viewModel.selectRoot(Note.G)
         assertEquals("G", viewModel.uiState.first().chordSymbol.canonicalName)
     }
 
     @Test
     fun `toggling a quality on then off returns to the plain triad`() = runTest {
-        val viewModel = ChordSelectionViewModel()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
         viewModel.selectRoot(Note.A)
         viewModel.toggleQuality(ChordQuality.MINOR)
         assertEquals("Am", viewModel.uiState.first().chordSymbol.canonicalName)
@@ -61,7 +63,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `combining compatible qualities resolves the combined chord`() = runTest {
-        val viewModel = ChordSelectionViewModel()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
         viewModel.selectRoot(Note.D)
         viewModel.toggleQuality(ChordQuality.MINOR)
         viewModel.toggleQuality(ChordQuality.SEVENTH)
@@ -70,7 +72,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `toggling a quality that conflicts with the current selection is a no-op`() = runTest {
-        val viewModel = ChordSelectionViewModel()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
         viewModel.toggleQuality(ChordQuality.AUGMENTED)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // conflicts with Augmented, should be ignored
 
@@ -81,7 +83,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `a quality conflicting with the current selection is reported disabled`() = runTest {
-        val viewModel = ChordSelectionViewModel()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
         viewModel.toggleQuality(ChordQuality.SEVENTH)
 
         val state = viewModel.uiState.first()
@@ -89,4 +91,26 @@ class ChordSelectionViewModelTest {
         assertTrue(state.isQualityEnabled(ChordQuality.SEVENTH)) // already selected, can still uncheck
         assertTrue(state.isQualityEnabled(ChordQuality.MINOR)) // unrelated, stays enabled
     }
+
+    @Test
+    fun `a curated voicing is resolved into state`() = runTest {
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
+        // Default state is plain C, which FakeGuitarVoicingLookup has a voicing for.
+        assertEquals(FakeGuitarVoicingLookup.C_VOICING, viewModel.uiState.first().voicing)
+    }
+
+    @Test
+    fun `an uncurated chord resolves to a null voicing`() = runTest {
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup)
+        viewModel.selectRoot(Note.B)
+        viewModel.toggleQuality(ChordQuality.DIMINISHED) // Bdim isn't in the fake lookup
+        assertEquals(null, viewModel.uiState.first().voicing)
+    }
+}
+
+private object FakeGuitarVoicingLookup : GuitarVoicingLookup {
+    val C_VOICING = GuitarVoicing(listOf(null, 3, 2, 0, 1, 0))
+
+    override fun voicingsFor(canonicalName: String): List<GuitarVoicing> =
+        if (canonicalName == "C") listOf(C_VOICING) else emptyList()
 }
