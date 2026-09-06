@@ -2,7 +2,7 @@ package com.virtualsoundnw.chords.audio
 
 import android.media.MediaDataSource
 import android.media.MediaPlayer
-import com.virtualsoundnw.chords.voicing.GuitarVoicing
+import com.virtualsoundnw.chords.voicing.ChordVoicing
 
 /**
  * Plays a chord by building a tiny in-memory MIDI file ([MidiSequenceBuilder])
@@ -14,8 +14,11 @@ import com.virtualsoundnw.chords.voicing.GuitarVoicing
 class MidiChordPlayer : ChordAudioSource {
     private var mediaPlayer: MediaPlayer? = null
 
-    override fun play(voicing: GuitarVoicing, instrument: Instrument) {
-        val midiNotes = StandardGuitarTuning.midiNotes(voicing)
+    override fun play(voicing: ChordVoicing, instrument: Instrument) {
+        val midiNotes = when (instrument) {
+            Instrument.GUITAR -> StandardGuitarTuning.midiNotes(voicing)
+            Instrument.UKULELE -> StandardUkuleleTuning.midiNotes(voicing)
+        }
         if (midiNotes.isEmpty()) return
 
         release()

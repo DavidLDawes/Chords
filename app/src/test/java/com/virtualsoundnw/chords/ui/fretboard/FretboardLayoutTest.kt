@@ -1,5 +1,6 @@
 package com.virtualsoundnw.chords.ui.fretboard
 
+import com.virtualsoundnw.chords.voicing.ChordVoicing
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -41,5 +42,20 @@ class FretboardLayoutTest {
     fun `markerFor reports the row relative to baseFret`() {
         assertEquals(FretboardLayout.StringMarker.Fretted(0), FretboardLayout.markerFor(6, baseFret = 6))
         assertEquals(FretboardLayout.StringMarker.Fretted(2), FretboardLayout.markerFor(8, baseFret = 6))
+    }
+
+    @Test
+    fun `baseFret and markerFor work the same for a 4-string ukulele voicing`() {
+        // Ukulele C major (GCEA): 0 0 0 3 — not guitar-specific, no hardcoded 6-string assumption
+        val frets = listOf(0, 0, 0, 3)
+        assertEquals(1, FretboardLayout.baseFret(frets))
+        assertEquals(FretboardLayout.StringMarker.Open, FretboardLayout.markerFor(frets[0], baseFret = 1))
+        assertEquals(FretboardLayout.StringMarker.Fretted(2), FretboardLayout.markerFor(frets[3], baseFret = 1))
+    }
+
+    @Test
+    fun `describeVoicing renders muted, open, and fretted strings`() {
+        val description = FretboardLayout.describeVoicing(ChordVoicing(listOf(null, 3, 2, 0, 1, 0)))
+        assertEquals("Fretboard diagram, strings low to high: muted, fret 3, fret 2, open, fret 1, open. Tap to play.", description)
     }
 }

@@ -6,8 +6,8 @@ import com.virtualsoundnw.chords.data.ChordSelectionStore
 import com.virtualsoundnw.chords.data.SavedSelection
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.Note
-import com.virtualsoundnw.chords.voicing.GuitarVoicing
-import com.virtualsoundnw.chords.voicing.GuitarVoicingLookup
+import com.virtualsoundnw.chords.voicing.ChordVoicing
+import com.virtualsoundnw.chords.voicing.VoicingLookup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -38,25 +38,35 @@ class ChordSelectionViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private fun createViewModel(
+        audioSource: ChordAudioSource = FakeChordAudioSource(),
+        store: ChordSelectionStore = FakeChordSelectionStore(),
+    ) = ChordSelectionViewModel(
+        mapOf(Instrument.GUITAR to FakeGuitarVoicingLookup, Instrument.UKULELE to FakeUkuleleVoicingLookup),
+        audioSource,
+        store,
+    )
+
     @Test
-    fun `initial state is a plain C major`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+    fun `initial state is a plain C major on guitar`() = runTest {
+        val viewModel = createViewModel()
         val state = viewModel.uiState.first()
         assertEquals(Note.C, state.root)
         assertEquals(emptySet<ChordQuality>(), state.qualities)
+        assertEquals(Instrument.GUITAR, state.instrument)
         assertEquals("C", state.chordSymbol.canonicalName)
     }
 
     @Test
     fun `selecting a root updates the resolved chord`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+        val viewModel = createViewModel()
         viewModel.selectRoot(Note.G)
         assertEquals("G", viewModel.uiState.first().chordSymbol.canonicalName)
     }
 
     @Test
     fun `toggling a quality on then off returns to the plain triad`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+        val viewModel = createViewModel()
         viewModel.selectRoot(Note.A)
         viewModel.toggleQuality(ChordQuality.MINOR)
         assertEquals("Am", viewModel.uiState.first().chordSymbol.canonicalName)
@@ -67,7 +77,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `combining compatible qualities resolves the combined chord`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+        val viewModel = createViewModel()
         viewModel.selectRoot(Note.D)
         viewModel.toggleQuality(ChordQuality.MINOR)
         viewModel.toggleQuality(ChordQuality.SEVENTH)
@@ -76,7 +86,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `toggling a quality that conflicts with the current selection is a no-op`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+        val viewModel = createViewModel()
         viewModel.toggleQuality(ChordQuality.AUGMENTED)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // conflicts with Augmented, should be ignored
 
@@ -87,7 +97,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `a quality conflicting with the current selection is reported disabled`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+        val viewModel = createViewModel()
         viewModel.toggleQuality(ChordQuality.SEVENTH)
 
         val state = viewModel.uiState.first()
@@ -98,14 +108,14 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `a curated voicing is resolved into state`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
-        // Default state is plain C, which FakeGuitarVoicingLookup has a voicing for.
+        val viewModel = createViewModel()
+        // Default state is plain C on guitar, which FakeGuitarVoicingLookup has a voicing for.
         assertEquals(FakeGuitarVoicingLookup.C_VOICING, viewModel.uiState.first().voicing)
     }
 
     @Test
     fun `an uncurated chord resolves to a null voicing`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
+        val viewModel = createViewModel()
         viewModel.selectRoot(Note.B)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // Bdim isn't in the fake lookup
         assertEquals(null, viewModel.uiState.first().voicing)
@@ -114,7 +124,7 @@ class ChordSelectionViewModelTest {
     @Test
     fun `playCurrentChord plays the currently resolved voicing`() = runTest {
         val audioSource = FakeChordAudioSource()
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, audioSource, FakeChordSelectionStore())
+        val viewModel = createViewModel(audioSource = audioSource)
 
         viewModel.playCurrentChord()
 
@@ -124,60 +134,103 @@ class ChordSelectionViewModelTest {
     @Test
     fun `playCurrentChord does nothing when there's no curated voicing`() = runTest {
         val audioSource = FakeChordAudioSource()
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, audioSource, FakeChordSelectionStore())
+        val viewModel = createViewModel(audioSource = audioSource)
         viewModel.selectRoot(Note.B)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // Bdim isn't in the fake lookup
 
         viewModel.playCurrentChord()
 
-        assertEquals(emptyList<GuitarVoicing>(), audioSource.playedVoicings)
+        assertEquals(emptyList<ChordVoicing>(), audioSource.playedVoicings)
     }
 
     @Test
     fun `a previously saved selection is restored on init`() = runTest {
-        val store = FakeChordSelectionStore(SavedSelection(Note.G, setOf(ChordQuality.MINOR)))
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), store)
+        val store = FakeChordSelectionStore(SavedSelection(Note.G, setOf(ChordQuality.MINOR), Instrument.UKULELE))
+        val viewModel = createViewModel(store = store)
 
         val state = viewModel.uiState.first()
         assertEquals(Note.G, state.root)
         assertEquals(setOf(ChordQuality.MINOR), state.qualities)
+        assertEquals(Instrument.UKULELE, state.instrument)
         assertEquals("Gm", state.chordSymbol.canonicalName)
     }
 
     @Test
     fun `selecting a root persists the new selection`() = runTest {
         val store = FakeChordSelectionStore()
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), store)
+        val viewModel = createViewModel(store = store)
 
         viewModel.selectRoot(Note.D)
 
-        assertEquals(SavedSelection(Note.D, emptySet()), store.savedSelections.last())
+        assertEquals(SavedSelection(Note.D, emptySet(), Instrument.GUITAR), store.savedSelections.last())
     }
 
     @Test
     fun `toggling a quality persists the new selection`() = runTest {
         val store = FakeChordSelectionStore()
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), store)
+        val viewModel = createViewModel(store = store)
 
         viewModel.toggleQuality(ChordQuality.MINOR)
 
-        assertEquals(SavedSelection(Note.C, setOf(ChordQuality.MINOR)), store.savedSelections.last())
+        assertEquals(SavedSelection(Note.C, setOf(ChordQuality.MINOR), Instrument.GUITAR), store.savedSelections.last())
+    }
+
+    @Test
+    fun `selecting an instrument switches which voicing is resolved`() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.selectInstrument(Instrument.UKULELE)
+
+        val state = viewModel.uiState.first()
+        assertEquals(Instrument.UKULELE, state.instrument)
+        assertEquals(FakeUkuleleVoicingLookup.C_VOICING, state.voicing)
+    }
+
+    @Test
+    fun `selecting an instrument persists it`() = runTest {
+        val store = FakeChordSelectionStore()
+        val viewModel = createViewModel(store = store)
+
+        viewModel.selectInstrument(Instrument.UKULELE)
+
+        assertEquals(SavedSelection(Note.C, emptySet(), Instrument.UKULELE), store.savedSelections.last())
+    }
+
+    @Test
+    fun `playCurrentChord plays on the currently selected instrument`() = runTest {
+        val audioSource = FakeChordAudioSource()
+        val viewModel = createViewModel(audioSource = audioSource)
+
+        viewModel.selectInstrument(Instrument.UKULELE)
+        viewModel.playCurrentChord()
+
+        assertEquals(listOf(FakeUkuleleVoicingLookup.C_VOICING), audioSource.playedVoicings)
+        assertEquals(listOf(Instrument.UKULELE), audioSource.playedInstruments)
     }
 }
 
-private object FakeGuitarVoicingLookup : GuitarVoicingLookup {
-    val C_VOICING = GuitarVoicing(listOf(null, 3, 2, 0, 1, 0))
+private object FakeGuitarVoicingLookup : VoicingLookup {
+    val C_VOICING = ChordVoicing(listOf(null, 3, 2, 0, 1, 0))
 
-    override fun voicingsFor(canonicalName: String): List<GuitarVoicing> =
+    override fun voicingsFor(canonicalName: String): List<ChordVoicing> =
+        if (canonicalName == "C") listOf(C_VOICING) else emptyList()
+}
+
+private object FakeUkuleleVoicingLookup : VoicingLookup {
+    val C_VOICING = ChordVoicing(listOf(0, 0, 0, 3))
+
+    override fun voicingsFor(canonicalName: String): List<ChordVoicing> =
         if (canonicalName == "C") listOf(C_VOICING) else emptyList()
 }
 
 private class FakeChordAudioSource : ChordAudioSource {
-    val playedVoicings = mutableListOf<GuitarVoicing>()
+    val playedVoicings = mutableListOf<ChordVoicing>()
+    val playedInstruments = mutableListOf<Instrument>()
     var released = false
 
-    override fun play(voicing: GuitarVoicing, instrument: Instrument) {
+    override fun play(voicing: ChordVoicing, instrument: Instrument) {
         playedVoicings += voicing
+        playedInstruments += instrument
     }
 
     override fun release() {

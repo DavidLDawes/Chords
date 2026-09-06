@@ -21,9 +21,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.virtualsoundnw.chords.theme.ChordsTheme
-import com.virtualsoundnw.chords.voicing.GuitarVoicing
+import com.virtualsoundnw.chords.voicing.ChordVoicing
 
-private const val STRING_COUNT = GuitarVoicing.STRING_COUNT
 private val TOP_MARGIN = 28.dp // room for the X/O markers above the nut
 private val SIDE_MARGIN = 24.dp // room for the fret-number label when the nut isn't shown
 private val EDGE_PADDING = 20.dp // clearance so the outermost strings' dots don't clip the canvas edge
@@ -33,17 +32,18 @@ private val EDGE_PADDING = 20.dp // clearance so the outermost strings' dots don
  * fingering dots. Tapping it invokes [onTap] — wire this to play the chord.
  */
 @Composable
-fun FretboardDiagramView(voicing: GuitarVoicing, modifier: Modifier = Modifier, onTap: () -> Unit = {}) {
+fun FretboardDiagramView(voicing: ChordVoicing, modifier: Modifier = Modifier, onTap: () -> Unit = {}) {
     val textMeasurer = rememberTextMeasurer()
     val lineColor = MaterialTheme.colorScheme.onSurface
     val dotColor = MaterialTheme.colorScheme.primary
     val labelStyle = TextStyle(color = lineColor, fontSize = 16.sp, textAlign = TextAlign.Center)
 
     val baseFret = FretboardLayout.baseFret(voicing.frets)
+    val stringCount = voicing.frets.size
 
     Canvas(
         modifier = modifier
-            .aspectRatio(STRING_COUNT.toFloat() / (FretboardLayout.FRET_WINDOW_SIZE + 1))
+            .aspectRatio(stringCount.toFloat() / (FretboardLayout.FRET_WINDOW_SIZE + 1))
             .clickable(onClickLabel = "Play chord", role = Role.Button, onClick = onTap)
             .semantics { contentDescription = FretboardLayout.describeVoicing(voicing) },
     ) {
@@ -51,9 +51,9 @@ fun FretboardDiagramView(voicing: GuitarVoicing, modifier: Modifier = Modifier, 
         val gridTop = TOP_MARGIN.toPx()
         val gridWidth = size.width - gridLeft - EDGE_PADDING.toPx()
         val gridHeight = size.height - gridTop
-        val stringSpacing = gridWidth / (STRING_COUNT - 1)
+        val stringSpacing = gridWidth / (stringCount - 1)
         val fretHeight = gridHeight / FretboardLayout.FRET_WINDOW_SIZE
-        val stringX = List(STRING_COUNT) { gridLeft + it * stringSpacing }
+        val stringX = List(stringCount) { gridLeft + it * stringSpacing }
 
         drawStrings(stringX, gridTop, gridHeight, lineColor)
         drawFretLines(gridLeft, gridTop, gridWidth, fretHeight, baseFret, lineColor)
@@ -153,7 +153,7 @@ private fun DrawScope.drawStringMarker(
 private fun FretboardDiagramViewOpenChordPreview() {
     ChordsTheme {
         // Am7: X 0 2 0 1 0
-        FretboardDiagramView(GuitarVoicing(listOf(null, 0, 2, 0, 1, 0)))
+        FretboardDiagramView(ChordVoicing(listOf(null, 0, 2, 0, 1, 0)))
     }
 }
 
@@ -162,6 +162,15 @@ private fun FretboardDiagramViewOpenChordPreview() {
 private fun FretboardDiagramViewBarreChordPreview() {
     ChordsTheme {
         // D#7 barre shape starting at fret 6: X 6 8 6 8 6
-        FretboardDiagramView(GuitarVoicing(listOf(null, 6, 8, 6, 8, 6)))
+        FretboardDiagramView(ChordVoicing(listOf(null, 6, 8, 6, 8, 6)))
+    }
+}
+
+@Preview(showBackground = true, widthDp = 220)
+@Composable
+private fun FretboardDiagramViewUkuleleChordPreview() {
+    ChordsTheme {
+        // Ukulele C major (GCEA): 0 0 0 3 — proves the diagram isn't hardcoded to 6 strings
+        FretboardDiagramView(ChordVoicing(listOf(0, 0, 0, 3)))
     }
 }
