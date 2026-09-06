@@ -107,31 +107,51 @@ Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one i
    - Shipped: `FretboardDiagramView` takes an `onTap` callback, and `ChordSelectorScreen` also shows an explicit "Play {chord}" button; both call `ChordSelectionViewModel.playCurrentChord()`. Verified live on-device (tapping both the fretboard and the button engages the audio device with no exceptions and no crash — full audible confirmation isn't checkable from this environment, but the MIDI bytes themselves are verified correct by the exact-byte unit test).
    - Found and fixed a real bug during this work: `playCurrentChord()` originally read the cached `uiState.value`, which is a `WhileSubscribed` `StateFlow` — its cached value only updates while something is actively collecting it. Fixed by resolving directly from the source `root`/`qualities` state instead.
 
-**Phase 6 — Integration & polish**
+**Phase 6 — Integration & polish** ✅ done
 19. Connect selection → voicing lookup → fretboard render → audio, all reactive off one ViewModel state.
+   - Already satisfied by how Phases 3-5 were built — `ChordSelectionViewModel.uiState` is the single reactive source the whole screen renders from. No new code needed; confirmed still true.
 20. Add instrument picker (guitar functional; ukulele stub); persist last selection via DataStore.
+   - Persistence shipped: `ChordSelectionStore` interface + `DataStoreChordSelectionStore` (Jetpack DataStore Preferences). The ViewModel loads the last root/qualities on `init` and saves on every change. Verified live on-device across a real `am force-stop` + relaunch, not just a warm reinstall.
+   - Instrument picker **deferred, on purpose** — building a picker with a single option (Guitar) has no value; it now belongs in the new Ukulele phase below, where there's actually a second option to pick.
 21. Empty/error states: invalid combo, no voicing found, audio load failure.
+   - Invalid combo: still structurally impossible (checkboxes are disabled before an invalid state can be reached), so there's nothing to display.
+   - No voicing found: shipped in Phase 4 ("No guitar shape curated yet for {chord}").
+   - Audio load failure: added `MediaPlayer.setOnErrorListener` to `MidiChordPlayer` so a decode/playback error releases cleanly instead of leaking or crashing.
 22. Accessibility pass: content descriptions for dropdown/checkboxes, TalkBack labels for the fretboard ("A minor seventh, open position").
+   - Quality checkboxes: each row is now one `Modifier.toggleable` target (checkbox + label announced together as a single checkbox control), the standard Compose accessibility pattern, rather than two separate elements.
+   - Fretboard: added a generated content description (`FretboardLayout.describeVoicing`), e.g. *"Fretboard diagram, strings low to high: fret 3, fret 2, open, open, open, fret 3. Tap to play."* — confirmed present via `android layout`'s semantics dump on-device.
+   - Root dropdown and Play button already accessible via Material3's built-in `TextField`/`DropdownMenuItem`/`Button` semantics.
+   - Found and fixed a real visual bug while testing this: the outermost strings' dots were half-clipped by the canvas edge (the string sat exactly at the margin with no room for the dot's radius to overflow into). Fixed with a dedicated `EDGE_PADDING` and a capped dot radius.
+
+**Phase 6.5 — Ukulele support**
+
+Ukulele reuses the music-theory layer completely unchanged (`Note`/`ChordQuality`/`ChordSymbol` don't know or care what instrument plays them) — this phase is entirely about the guitar-shaped assumptions baked into the voicing/rendering/audio layers.
+
+23. Generalize the voicing/fretboard model off a hardcoded 6-string guitar. `GuitarVoicing.STRING_COUNT` and `FretboardLayout`/`FretboardDiagramView`'s string-count assumptions need to come from the voicing's own `frets.size` instead of a constant, so the same rendering code draws a 4-string ukulele diagram without a parallel copy of the drawing logic.
+24. Curate ukulele voicing data: 4 strings, **standard reentrant tuning (G4, C4, E4, A4)** — note this is *not* monotonically ascending in pitch (the G string is tuned higher than the C string next to it), unlike guitar's tuning. Order string data by physical position (as strung on the instrument, matching how a uke chord chart is conventionally drawn), not by pitch, to avoid modeling this incorrectly. New `assets/chords/ukulele_voicings.json` (same canonical-chord-name keys as the guitar file) + a shared parser, covering the same chord set already curated for guitar. Verify with the same note-by-note pitch-class self-check pattern `GuitarVoicingDataTest` already established.
+25. Add `Instrument.UKULELE`. General MIDI has no dedicated ukulele program — General MIDI's Banjo (program 105) is the closest commonly-used substitute timbre and is what we'll use, documented as a deliberate approximation rather than an oversight. Add a ukulele tuning table (MIDI note per string, respecting the reentrant order above) alongside `StandardGuitarTuning`.
+26. Add the instrument picker (Guitar / Ukulele) — this is where it actually earns its place, since there are finally two real options. Switches which voicing repository feeds the fretboard and which GM program `MidiChordPlayer` uses; persist the choice via the same `ChordSelectionStore`.
+27. Tests: ukulele voicing-data self-verification (same rigor as `GuitarVoicingDataTest`), `FretboardLayout`/`FretboardDiagramView` with a 4-string voicing, and instrument-picker ViewModel coverage.
 
 **Phase 7 — Testing & hardening**
-23. Full unit test pass on theory + voicing modules; Compose UI tests for selector→render flow; manual pass on a real device via `android-cli`-driven install/run.
-24. Basic crash reporting (Play Console's built-in Android Vitals is enough for v1 — skip a third-party SDK to avoid the privacy-policy overhead it adds).
+28. Full unit test pass on theory + voicing modules; Compose UI tests for selector→render flow; manual pass on a real device via `android-cli`-driven install/run.
+29. Basic crash reporting (Play Console's built-in Android Vitals is enough for v1 — skip a third-party SDK to avoid the privacy-policy overhead it adds).
 
 **Phase 8 — Store readiness**
-25. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page (needed even for a no-account app if you request any permissions — MIDI/MediaPlayer audio playback needs no special permissions, but a policy is still required for Play listing).
-26. Set `versionCode`/`versionName`, enable Play App Signing, generate/upload signed `.aab` via Android Studio's "Generate Signed Bundle" or `./gradlew bundleRelease`.
-27. Fill out Play Console's Data Safety form (likely "no data collected" for v1), content rating questionnaire, target audience.
+30. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page (needed even for a no-account app if you request any permissions — MIDI/MediaPlayer audio playback needs no special permissions, but a policy is still required for Play listing).
+31. Set `versionCode`/`versionName`, enable Play App Signing, generate/upload signed `.aab` via Android Studio's "Generate Signed Bundle" or `./gradlew bundleRelease`.
+32. Fill out Play Console's Data Safety form (likely "no data collected" for v1), content rating questionnaire, target audience.
 
 **Phase 9 — Release**
-28. Upload to an **internal testing** track first; install on your own device via the internal-testing link, verify.
-29. Promote to **closed testing** (a few real users) for a short soak, watching Android Vitals for crashes/ANRs.
-30. Promote to **production**, staged rollout (e.g. start at 20%) then ramp to 100%.
+33. Upload to an **internal testing** track first; install on your own device via the internal-testing link, verify.
+34. Promote to **closed testing** (a few real users) for a short soak, watching Android Vitals for crashes/ANRs.
+35. Promote to **production**, staged rollout (e.g. start at 20%) then ramp to 100%.
 
 **Phase 10 — Future extensibility (post-v1, enabled by the Phase 3 interfaces)**
-31. `HandPhotoView`: bundle/curate photos per common voicing, swap in via the existing `ChordVisualization` interface.
-32. `KeyboardDiagramView` + piano `ChordVoicing` data (frets model doesn't apply — model as pressed-key MIDI numbers instead) for the PIANO instrument.
-33. `HandOnKeyboardPhotoView` analogous to the guitar hand-photo view.
-34. Consider a `SoundFontChordPlayer` if adding many more instruments makes per-note sample libraries unwieldy.
+36. `HandPhotoView`: bundle/curate photos per common voicing, swap in via the existing `ChordVisualization` interface.
+37. `KeyboardDiagramView` + piano `ChordVoicing` data (frets model doesn't apply — model as pressed-key MIDI numbers instead) for the PIANO instrument.
+38. `HandOnKeyboardPhotoView` analogous to the guitar hand-photo view.
+39. Consider a `SoundFontChordPlayer` if adding many more instruments makes per-note sample libraries unwieldy.
 
 ## 5. Key risks to watch
 

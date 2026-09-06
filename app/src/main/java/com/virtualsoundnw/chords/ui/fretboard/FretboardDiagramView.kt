@@ -9,6 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -23,6 +26,7 @@ import com.virtualsoundnw.chords.voicing.GuitarVoicing
 private const val STRING_COUNT = GuitarVoicing.STRING_COUNT
 private val TOP_MARGIN = 28.dp // room for the X/O markers above the nut
 private val SIDE_MARGIN = 24.dp // room for the fret-number label when the nut isn't shown
+private val EDGE_PADDING = 20.dp // clearance so the outermost strings' dots don't clip the canvas edge
 
 /**
  * Draws [voicing] as a standard chord-chart diagram: strings, frets, and
@@ -40,11 +44,12 @@ fun FretboardDiagramView(voicing: GuitarVoicing, modifier: Modifier = Modifier, 
     Canvas(
         modifier = modifier
             .aspectRatio(STRING_COUNT.toFloat() / (FretboardLayout.FRET_WINDOW_SIZE + 1))
-            .clickable(onClick = onTap),
+            .clickable(onClickLabel = "Play chord", role = Role.Button, onClick = onTap)
+            .semantics { contentDescription = FretboardLayout.describeVoicing(voicing) },
     ) {
-        val gridLeft = SIDE_MARGIN.toPx()
+        val gridLeft = SIDE_MARGIN.toPx() + EDGE_PADDING.toPx()
         val gridTop = TOP_MARGIN.toPx()
-        val gridWidth = size.width - gridLeft
+        val gridWidth = size.width - gridLeft - EDGE_PADDING.toPx()
         val gridHeight = size.height - gridTop
         val stringSpacing = gridWidth / (STRING_COUNT - 1)
         val fretHeight = gridHeight / FretboardLayout.FRET_WINDOW_SIZE
@@ -127,7 +132,10 @@ private fun DrawScope.drawStringMarker(
     when (marker) {
         is FretboardLayout.StringMarker.Fretted -> {
             val centerY = gridTop + (marker.row + 0.5f) * fretHeight
-            drawCircle(color = dotColor, radius = stringSpacing * 0.32f, center = Offset(x, centerY))
+            // Capped so a dot on the outermost strings never overflows past
+            // EDGE_PADDING and clips the canvas edge, regardless of screen width.
+            val radius = minOf(stringSpacing * 0.32f, EDGE_PADDING.toPx() * 0.9f)
+            drawCircle(color = dotColor, radius = radius, center = Offset(x, centerY))
         }
         FretboardLayout.StringMarker.Muted, FretboardLayout.StringMarker.Open -> {
             val text = if (marker == FretboardLayout.StringMarker.Muted) "X" else "O"

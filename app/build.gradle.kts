@@ -59,6 +59,9 @@ dependencies {
   // Serialization (chord voicing JSON assets)
   implementation(libs.kotlinx.serialization.json)
 
+  // Persistence (last chord selection)
+  implementation(libs.androidx.datastore.preferences)
+
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)

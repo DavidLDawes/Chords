@@ -2,6 +2,8 @@ package com.virtualsoundnw.chords.ui.selector
 
 import com.virtualsoundnw.chords.audio.ChordAudioSource
 import com.virtualsoundnw.chords.audio.Instrument
+import com.virtualsoundnw.chords.data.ChordSelectionStore
+import com.virtualsoundnw.chords.data.SavedSelection
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.Note
 import com.virtualsoundnw.chords.voicing.GuitarVoicing
@@ -38,7 +40,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `initial state is a plain C major`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         val state = viewModel.uiState.first()
         assertEquals(Note.C, state.root)
         assertEquals(emptySet<ChordQuality>(), state.qualities)
@@ -47,14 +49,14 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `selecting a root updates the resolved chord`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         viewModel.selectRoot(Note.G)
         assertEquals("G", viewModel.uiState.first().chordSymbol.canonicalName)
     }
 
     @Test
     fun `toggling a quality on then off returns to the plain triad`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         viewModel.selectRoot(Note.A)
         viewModel.toggleQuality(ChordQuality.MINOR)
         assertEquals("Am", viewModel.uiState.first().chordSymbol.canonicalName)
@@ -65,7 +67,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `combining compatible qualities resolves the combined chord`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         viewModel.selectRoot(Note.D)
         viewModel.toggleQuality(ChordQuality.MINOR)
         viewModel.toggleQuality(ChordQuality.SEVENTH)
@@ -74,7 +76,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `toggling a quality that conflicts with the current selection is a no-op`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         viewModel.toggleQuality(ChordQuality.AUGMENTED)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // conflicts with Augmented, should be ignored
 
@@ -85,7 +87,7 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `a quality conflicting with the current selection is reported disabled`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         viewModel.toggleQuality(ChordQuality.SEVENTH)
 
         val state = viewModel.uiState.first()
@@ -96,14 +98,14 @@ class ChordSelectionViewModelTest {
 
     @Test
     fun `a curated voicing is resolved into state`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         // Default state is plain C, which FakeGuitarVoicingLookup has a voicing for.
         assertEquals(FakeGuitarVoicingLookup.C_VOICING, viewModel.uiState.first().voicing)
     }
 
     @Test
     fun `an uncurated chord resolves to a null voicing`() = runTest {
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource())
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), FakeChordSelectionStore())
         viewModel.selectRoot(Note.B)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // Bdim isn't in the fake lookup
         assertEquals(null, viewModel.uiState.first().voicing)
@@ -112,7 +114,7 @@ class ChordSelectionViewModelTest {
     @Test
     fun `playCurrentChord plays the currently resolved voicing`() = runTest {
         val audioSource = FakeChordAudioSource()
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, audioSource)
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, audioSource, FakeChordSelectionStore())
 
         viewModel.playCurrentChord()
 
@@ -122,13 +124,44 @@ class ChordSelectionViewModelTest {
     @Test
     fun `playCurrentChord does nothing when there's no curated voicing`() = runTest {
         val audioSource = FakeChordAudioSource()
-        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, audioSource)
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, audioSource, FakeChordSelectionStore())
         viewModel.selectRoot(Note.B)
         viewModel.toggleQuality(ChordQuality.DIMINISHED) // Bdim isn't in the fake lookup
 
         viewModel.playCurrentChord()
 
         assertEquals(emptyList<GuitarVoicing>(), audioSource.playedVoicings)
+    }
+
+    @Test
+    fun `a previously saved selection is restored on init`() = runTest {
+        val store = FakeChordSelectionStore(SavedSelection(Note.G, setOf(ChordQuality.MINOR)))
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), store)
+
+        val state = viewModel.uiState.first()
+        assertEquals(Note.G, state.root)
+        assertEquals(setOf(ChordQuality.MINOR), state.qualities)
+        assertEquals("Gm", state.chordSymbol.canonicalName)
+    }
+
+    @Test
+    fun `selecting a root persists the new selection`() = runTest {
+        val store = FakeChordSelectionStore()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), store)
+
+        viewModel.selectRoot(Note.D)
+
+        assertEquals(SavedSelection(Note.D, emptySet()), store.savedSelections.last())
+    }
+
+    @Test
+    fun `toggling a quality persists the new selection`() = runTest {
+        val store = FakeChordSelectionStore()
+        val viewModel = ChordSelectionViewModel(FakeGuitarVoicingLookup, FakeChordAudioSource(), store)
+
+        viewModel.toggleQuality(ChordQuality.MINOR)
+
+        assertEquals(SavedSelection(Note.C, setOf(ChordQuality.MINOR)), store.savedSelections.last())
     }
 }
 
@@ -149,5 +182,17 @@ private class FakeChordAudioSource : ChordAudioSource {
 
     override fun release() {
         released = true
+    }
+}
+
+private class FakeChordSelectionStore(initial: SavedSelection? = null) : ChordSelectionStore {
+    private var current = initial
+    val savedSelections = mutableListOf<SavedSelection>()
+
+    override suspend fun load(): SavedSelection? = current
+
+    override suspend fun save(selection: SavedSelection) {
+        current = selection
+        savedSelections += selection
     }
 }

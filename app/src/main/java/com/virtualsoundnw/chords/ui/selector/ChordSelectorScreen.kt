@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -24,12 +25,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.virtualsoundnw.chords.audio.MidiChordPlayer
+import com.virtualsoundnw.chords.data.DataStoreChordSelectionStore
 import com.virtualsoundnw.chords.theme.ChordsTheme
 import com.virtualsoundnw.chords.theory.ChordQuality
 import com.virtualsoundnw.chords.theory.ChordSymbol
@@ -42,7 +45,13 @@ import com.virtualsoundnw.chords.voicing.GuitarVoicingRepository
 fun ChordSelectorScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val viewModel: ChordSelectionViewModel =
-        viewModel { ChordSelectionViewModel(GuitarVoicingRepository(context), MidiChordPlayer()) }
+        viewModel {
+            ChordSelectionViewModel(
+                GuitarVoicingRepository(context),
+                MidiChordPlayer(),
+                DataStoreChordSelectionStore(context),
+            )
+        }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ChordSelectorScreen(
         state = state,
@@ -120,12 +129,23 @@ private fun RootNoteDropdown(selected: Note, onSelected: (Note) -> Unit, modifie
 private fun QualityCheckboxGroup(state: ChordSelectionUiState, onToggle: (ChordQuality) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier) {
         ChordQuality.entries.forEach { quality ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = quality in state.qualities,
-                    onCheckedChange = { onToggle(quality) },
-                    enabled = state.isQualityEnabled(quality),
-                )
+            val checked = quality in state.qualities
+            val enabled = state.isQualityEnabled(quality)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = checked,
+                        enabled = enabled,
+                        role = Role.Checkbox,
+                        onValueChange = { onToggle(quality) },
+                    ),
+            ) {
+                // onCheckedChange = null: the row's toggleable above already
+                // handles the click and announces the checkbox role, so the
+                // checkbox itself shouldn't also be an independent tap target.
+                Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
                 Text(quality.label)
             }
         }
