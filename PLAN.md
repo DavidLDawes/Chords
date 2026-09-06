@@ -81,10 +81,13 @@ Keeping `ChordVisualization` and `ChordAudioSource` as interfaces from day one i
 9. Unit test the loader against a handful of known chords (E, Am, G7, Cmaj7).
    - Shipped, and taken further: `GuitarVoicingDataTest` validates every fretted note in the *actual bundled file* is a real chord tone (transposed through standard tuning) and that every voicing sounds its root — not just a synthetic sample.
 
-**Phase 3 — Selector UI**
+**Phase 3 — Selector UI** ✅ done
 10. Build the root-note dropdown (`ExposedDropdownMenuBox`) with sharps/flats shown together (e.g. "A# / Bb").
 11. Build the quality checkbox group, greying out/disabling combinations that fail the Phase 1 compatibility matrix.
+   - Shipped: `ChordSelectorScreen` (root dropdown via `ExposedDropdownMenuBox` + a `ChordQuality` checkbox group). Disabling reuses `ChordSymbol.findConflict` directly (`ChordSelectionUiState.isQualityEnabled`) instead of a second copy of the compatibility rules.
 12. Wire both into a `ChordSelectionViewModel` exposing a `StateFlow<ChordSymbol?>`.
+   - Shipped as `StateFlow<ChordSelectionUiState>` (root + qualities + the always-valid resolved `ChordSymbol>`, since invalid combinations are prevented rather than represented). Replaces the template's placeholder `MainScreen`/`MainScreenViewModel`/`DataRepository`, which were deleted. 6 unit tests in `ChordSelectionViewModelTest`.
+   - Still shows only the resolved chord name as text — the fretboard diagram (Phase 4) is next.
 
 **Phase 4 — Fretboard rendering**
 13. Build `FretboardDiagramView` as a Compose `Canvas`: draw nut, 5 fret lines, 6 string lines, fret markers, then overlay the current `ChordVoicing` (dots on fret/string intersections, "X"/"O" above nut for muted/open strings).

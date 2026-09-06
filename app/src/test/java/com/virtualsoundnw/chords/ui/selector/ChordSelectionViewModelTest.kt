@@ -1,0 +1,92 @@
+package com.virtualsoundnw.chords.ui.selector
+
+import com.virtualsoundnw.chords.theory.ChordQuality
+import com.virtualsoundnw.chords.theory.Note
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ChordSelectionViewModelTest {
+    // ChordSelectionViewModel's uiState is built with viewModelScope.stateIn,
+    // which needs a Main dispatcher even in a plain JVM unit test.
+    // Unconfined so the combine()/stateIn() coroutine runs eagerly on each
+    // update instead of needing manual scheduler advancing.
+    @Before
+    fun setMainDispatcher() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+    }
+
+    @After
+    fun resetMainDispatcher() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `initial state is a plain C major`() = runTest {
+        val viewModel = ChordSelectionViewModel()
+        val state = viewModel.uiState.first()
+        assertEquals(Note.C, state.root)
+        assertEquals(emptySet<ChordQuality>(), state.qualities)
+        assertEquals("C", state.chordSymbol.canonicalName)
+    }
+
+    @Test
+    fun `selecting a root updates the resolved chord`() = runTest {
+        val viewModel = ChordSelectionViewModel()
+        viewModel.selectRoot(Note.G)
+        assertEquals("G", viewModel.uiState.first().chordSymbol.canonicalName)
+    }
+
+    @Test
+    fun `toggling a quality on then off returns to the plain triad`() = runTest {
+        val viewModel = ChordSelectionViewModel()
+        viewModel.selectRoot(Note.A)
+        viewModel.toggleQuality(ChordQuality.MINOR)
+        assertEquals("Am", viewModel.uiState.first().chordSymbol.canonicalName)
+
+        viewModel.toggleQuality(ChordQuality.MINOR)
+        assertEquals("A", viewModel.uiState.first().chordSymbol.canonicalName)
+    }
+
+    @Test
+    fun `combining compatible qualities resolves the combined chord`() = runTest {
+        val viewModel = ChordSelectionViewModel()
+        viewModel.selectRoot(Note.D)
+        viewModel.toggleQuality(ChordQuality.MINOR)
+        viewModel.toggleQuality(ChordQuality.SEVENTH)
+        assertEquals("Dm7", viewModel.uiState.first().chordSymbol.canonicalName)
+    }
+
+    @Test
+    fun `toggling a quality that conflicts with the current selection is a no-op`() = runTest {
+        val viewModel = ChordSelectionViewModel()
+        viewModel.toggleQuality(ChordQuality.AUGMENTED)
+        viewModel.toggleQuality(ChordQuality.DIMINISHED) // conflicts with Augmented, should be ignored
+
+        val state = viewModel.uiState.first()
+        assertEquals(setOf(ChordQuality.AUGMENTED), state.qualities)
+        assertEquals("Caug", state.chordSymbol.canonicalName)
+    }
+
+    @Test
+    fun `a quality conflicting with the current selection is reported disabled`() = runTest {
+        val viewModel = ChordSelectionViewModel()
+        viewModel.toggleQuality(ChordQuality.SEVENTH)
+
+        val state = viewModel.uiState.first()
+        assertFalse(state.isQualityEnabled(ChordQuality.SIXTH))
+        assertTrue(state.isQualityEnabled(ChordQuality.SEVENTH)) // already selected, can still uncheck
+        assertTrue(state.isQualityEnabled(ChordQuality.MINOR)) // unrelated, stays enabled
+    }
+}
