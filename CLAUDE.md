@@ -25,6 +25,7 @@ diagrams as additive work too, not rework.
 - Playback failures are handled at the `MediaPlayer` boundary (`setOnErrorListener` releases cleanly) since that's a real system boundary (codec/OS variability); our own generated MIDI bytes are fully within our control and don't need defensive handling — they're verified correct by unit test instead.
 - **Testing**: JUnit for the theory/voicing-loader modules (highest-value tests in this codebase, plain-JVM and fast); instrumented Compose UI tests (`app/src/androidTest`) for the selector→render flow, driving `ChordSelectorScreen`'s stateless overload directly rather than the real ViewModel (that's already covered by the JVM ViewModel tests) — run via `./gradlew connectedDebugAndroidTest` against a device/emulator.
 - **CI**: GitHub Actions running unit tests + `assembleDebug` on push/PR. Instrumented tests are deliberately *not* in CI — emulator-based CI (KVM, boot time, flakiness) is a much heavier lift than unit-test-only CI; run them locally via `android-cli` before a release instead. Revisit if UI regressions start slipping past review.
+- **Monetization** (Phase 7.5): freemium — free with a single AdMob banner ad, one-time ~$4.99 Play Billing purchase to remove it. This is a deliberate, later reversal of the "no analytics SDK" non-goal below, made for monetization — not an accident. When implementing it, wrap Billing behind a `PurchaseLookup`-style interface (matching `VoicingLookup`/`ChordAudioSource`/`ChordSelectionStore`) so ad-gating stays unit-testable.
 
 ## Architectural seams to preserve
 
@@ -38,7 +39,7 @@ Checkboxes (min, 7, maj7, 9, sus2, sus4, 6, Aug, Dim, ...) must be validated as 
 
 ## Non-goals for v1
 
-- No user accounts, no backend/network calls, no analytics SDK (avoids Play Data-Safety/privacy-policy overhead beyond the baseline).
+- No user accounts, no backend of our own. This used to also say "no network calls, no analytics SDK" — Phase 7.5 deliberately reopens that: AdMob and Play Billing both make network calls to Google's infrastructure. Still true: no backend *we* run, no user accounts, no data leaving the device other than what those two Google SDKs handle.
 - No barre-chord-only voicings when a real open/low-fret shape exists — prefer the hand-playable option.
 - No piano UI or data — deferred (Phase 10).
 - No sus2/sus4/6th/9th/Aug/Dim voicing data for ukulele yet, mirroring guitar's own deferral of 6th/9th/Aug/Dim — extend `ukulele_voicings.json` the same way (curate and self-verify, don't guess) rather than adding a shortcut.

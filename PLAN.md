@@ -147,24 +147,40 @@ Ukulele reuses the music-theory layer completely unchanged (`Note`/`ChordQuality
 29. Basic crash reporting (Play Console's built-in Android Vitals is enough for v1 — skip a third-party SDK to avoid the privacy-policy overhead it adds).
    - Confirmed: `AndroidManifest.xml` has nothing that would interfere with Vitals' automatic OS-level crash/ANR collection. No code changes needed — this activates automatically once the app is distributed through Play Console.
 
+**Phase 7.5 — Monetization** (decision: proceed with this, per direction to plan for it)
+
+Model: **freemium** — free download with a single banner ad, plus a one-time ~$4.99 in-app purchase ("Remove Ads") that turns it off permanently. This directly reopens a decision already on record in CLAUDE.md's non-goals ("no analytics SDK... avoids Play Data-Safety/privacy-policy overhead") — an ads SDK makes network calls and collects an advertising ID, which is exactly that overhead. That's a reasonable trade for monetization, but it's a real trade, not a free lunch, so CLAUDE.md gets updated alongside this phase rather than left contradicting it.
+
+Alternatives considered, for the record:
+- **Stay fully free, no monetization** — zero added complexity/privacy surface, keeps the app's current clean non-goals intact. The right call if this stays a passion project rather than something meant to earn money.
+- **Paid-only, no free tier** — simpler than freemium (no ad SDK, no dual UI state) but removes the free on-ramp that tends to drive first-app downloads and reviews.
+- **Ads with no removal option** — simplest ads-only approach, but the ask here specifically wants a paid ad-free path, so this isn't the target.
+
+30. Add Google AdMob (`com.google.android.gms:play-services-ads`) for a single banner ad, anchored below the Play button. A banner (not interstitial/rewarded) fits this app's usage pattern — quick chord lookups have no natural break point for a full-screen ad.
+31. Add Google Play Billing (`com.android.billingclient:billing`) for a one-time non-consumable "Remove Ads" product. Wrap it behind a `PurchaseLookup`-style interface, matching the existing DI pattern (`VoicingLookup`, `ChordAudioSource`, `ChordSelectionStore`), so ad-gating logic is unit-testable without touching real Billing APIs. Always re-verify entitlement against Play Billing on launch rather than trusting only cached local state.
+   - Note the resulting property is actually nicer than our own persistence: Play Billing purchases are tied to the Google account, not local storage, so "Remove Ads" correctly survives a reinstall — unlike the DataStore-based chord selection, which doesn't.
+32. Update Play Console + policy docs to match: declare the app contains ads, add the in-app product (~$4.99, whatever Play's nearest price tier is), link the AdMob account, and update the Data Safety form (advertising ID + usage data shared for ad personalization) and the public privacy policy from Phase 8 below.
+33. Test both paths on a real device: ad shows for a non-purchaser, the purchase flow completes via Play Console license testing, the ad disappears immediately after purchase, and entitlement is correctly restored after a fresh install.
+
 **Phase 8 — Store readiness**
-30. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page (needed even for a no-account app if you request any permissions — MIDI/MediaPlayer audio playback needs no special permissions, but a policy is still required for Play listing).
-31. Set `versionCode`/`versionName`, enable Play App Signing, generate/upload signed `.aab` via Android Studio's "Generate Signed Bundle" or `./gradlew bundleRelease`.
-32. Fill out Play Console's Data Safety form (likely "no data collected" for v1), content rating questionnaire, target audience.
+34. App icon, feature graphic, phone screenshots (Play Console now requires specific sizes), short/long description, privacy policy page — now needs an ads/analytics-ID section per Phase 7.5, not just the no-account-app boilerplate.
+35. Set `versionCode`/`versionName`, enable Play App Signing, generate/upload signed `.aab` via Android Studio's "Generate Signed Bundle" or `./gradlew bundleRelease`.
+36. Fill out Play Console's Data Safety form (now includes the advertising-ID disclosure from Phase 7.5, not "no data collected"), content rating questionnaire, target audience — including the ads-specific declarations (e.g. whether the app is child-directed, since AdMob has separate compliance requirements for that).
 
 **Phase 9 — Release**
-33. Upload to an **internal testing** track first; install on your own device via the internal-testing link, verify.
-34. Promote to **closed testing** (a few real users) for a short soak, watching Android Vitals for crashes/ANRs.
-35. Promote to **production**, staged rollout (e.g. start at 20%) then ramp to 100%.
+37. Upload to an **internal testing** track first; install on your own device via the internal-testing link, verify.
+38. Promote to **closed testing** (a few real users) for a short soak, watching Android Vitals for crashes/ANRs.
+39. Promote to **production**, staged rollout (e.g. start at 20%) then ramp to 100%.
 
 **Phase 10 — Future extensibility (post-v1, enabled by the Phase 3 interfaces)**
-36. `HandPhotoView`: bundle/curate photos per common voicing, swap in via the existing `ChordVisualization` interface.
-37. `KeyboardDiagramView` + piano `ChordVoicing` data (frets model doesn't apply — model as pressed-key MIDI numbers instead) for the PIANO instrument.
-38. `HandOnKeyboardPhotoView` analogous to the guitar hand-photo view.
-39. Consider a `SoundFontChordPlayer` if adding many more instruments makes per-note sample libraries unwieldy.
+40. `HandPhotoView`: bundle/curate photos per common voicing, swap in via the existing `ChordVisualization` interface.
+41. `KeyboardDiagramView` + piano `ChordVoicing` data (frets model doesn't apply — model as pressed-key MIDI numbers instead) for the PIANO instrument.
+42. `HandOnKeyboardPhotoView` analogous to the guitar hand-photo view.
+43. Consider a `SoundFontChordPlayer` if adding many more instruments makes per-note sample libraries unwieldy.
 
 ## 5. Key risks to watch
 
 - **Voicing data quality** is the single biggest effort sink — real hand-playable chord shapes for every root×quality combo is a lot of curation. Start with the most common ~40 chords fully correct rather than thin coverage of all combos.
 - **Checkbox combination explosion** — decide early which combos are actually valid music (e.g. can you have min+Aug? no) so the UI never produces a nonsense symbol.
 - **Audio licensing** — if sourcing samples rather than recording your own, confirm license terms allow redistribution in a published app.
+- **Ads/monetization compliance** (Phase 7.5) — an ads SDK changes the Data Safety and privacy-policy answers, and AdMob has its own child-directed-treatment rules independent of Play's general families policy. Get the Play Console ads/target-audience declarations right the first time; changing them after publishing is more friction than getting them right up front.
